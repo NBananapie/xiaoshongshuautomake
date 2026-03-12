@@ -150,6 +150,11 @@ export default function initPosterApp() {
 
       // 清理 markdown 包裹
       content = content.replace(/^```json/im, '').replace(/```$/m, '').trim();
+
+      // 修复因 AI 幻觉导致的 JSON literal 异常（如字符串中直接包含未经 \\n 转义的物理换行符）
+      // 将所有 0x00-0x1F 的控制字符（包含了实际换行符、Tab 等）全部剔除，确保安全解析
+      content = content.replace(/[\u0000-\u001F]+/g, "");
+
       let result;
       try {
         result = JSON.parse(content);
