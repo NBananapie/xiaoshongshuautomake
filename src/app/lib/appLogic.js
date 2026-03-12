@@ -177,27 +177,42 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
 
   function parseMarkdownToPosterData(mdText) {
     const data = { cover: {}, pages: [], ending: {} };
-    // 按一级标题切分页面，支持多种换行符和空格
-    const pagesRaw = mdText.split(/^#\s+/m).filter(p => p.trim());
-
-    pagesRaw.forEach(pageStr => {
-      const lines = pageStr.split(/\r?\n/);
-      const pageTypeLine = lines[0].trim();
-      const pageBody = lines.slice(1).join('\n');
-
-      if (pageTypeLine.includes('封面')) {
-        data.cover = parsePageBlocks(pageBody, 'cover');
-      } else if (pageTypeLine.includes('尾页') || pageTypeLine.includes('结尾')) {
-        data.ending = parsePageBlocks(pageBody, 'ending');
-      } else {
-        const parsedContext = parsePageBlocks(pageBody, 'content');
-        if (parsedContext.elements && parsedContext.elements.length > 0) {
-          data.pages.push(parsedContext);
-        }
+    const lines = mdText.replace(/^```[a-z]*\r?\n/i, '').replace(/\r?\n```$/m, '').trim().split(/\r?\n/);
+    let currentSection = null, currentBlockTitle = null, currentPage = null, currentBlockContent = [];
+    function saveBlock() {
+      if (!currentBlockTitle || !currentSection) return;
+      const content = currentBlockContent.join('\n').trim();
+      if (!content) return;
+      const target = (currentSection === 'page') ? currentPage : (currentSection === 'cover' ? data.cover : data.ending);
+      if (currentSection === 'cover') {
+        if (currentBlockTitle.includes('背景色')) target.bgTheme = content;
+        else if (currentBlockTitle.includes('主标题')) target.headline = content;
+        else if (currentBlockTitle.includes('副标题')) target.sub = content;
+      } else if (currentSection === 'ending') {
+        if (currentBlockTitle.includes('背景色')) target.bgTheme = content;
+        else if (currentBlockTitle.includes('互动') || currentBlockTitle.includes('引导')) target.cta = content;
+      } else if (currentSection === 'page') {
+        if (currentBlockTitle.includes('背景色')) target.bgTheme = content;
+        else if (currentBlockTitle.includes('小标题') || currentBlockTitle.includes('标题')) target.elements.push({ type: 'h2', content });
+        else if (currentBlockTitle.includes('金句作者')) { const last = target.elements[target.elements.length - 1]; if (last && last.type === 'quote') last.author = content; else target.elements.push({ type: 'quote', content: '', author: content }); }
+        else if (currentBlockTitle.includes('金句') || currentBlockTitle.includes('名言')) { const last = target.elements[target.elements.length - 1]; if (last && last.type === 'quote') last.content = content; else target.elements.push({ type: 'quote', content: content, author: '佚名' }); }
+        else if (currentBlockTitle.includes('数据值')) { const last = target.elements[target.elements.length - 1]; if (last && last.type === 'data') last.num = content; else target.elements.push({ type: 'data', num: content, label: '' }); }
+        else if (currentBlockTitle.includes('数据说明')) { const last = target.elements[target.elements.length - 1]; if (last && last.type === 'data') last.label = content; else target.elements.push({ type: 'data', num: '', label: content }); }
+        else if (currentBlockTitle.includes('提示') || currentBlockTitle.includes('建议')) target.elements.push({ type: 'tip', content: content.replace(/^[-\*•]\s*/gm, '') });
+        else if (currentBlockTitle.includes('列表')) { const items = content.split(/\r?\n/).filter(l => l.trim()).map(l => ({ title: l.replace(/^[-\*\d\.•]+\s*/, ''), desc: '' })); if (items.length > 0) target.elements.push({ type: 'list', items }); }
+        else target.elements.push({ type: 'body', content: content.replace(/\n/g, '<br>') });
       }
+      currentBlockTitle = null; currentBlockContent = [];
+    }
+    lines.forEach(line => {
+      const t = line.trim();
+      if (t.startsWith('# ') || (t.startsWith('#') && t.length < 10 && !t.startsWith('##'))) {
+        saveBlock(); const s = t.replace(/^#+\s*/, '');
+        if (s.includes('封面')) currentSection = 'cover'; else if (s.includes('尾页') || s.includes('结尾')) currentSection = 'ending'; else { currentSection = 'page'; currentPage = { bgTheme: '', elements: [] }; data.pages.push(currentPage); }
+      } else if (t.startsWith('## ')) { saveBlock(); currentBlockTitle = t.substring(3).trim(); }
+      else if (currentSection) currentBlockContent.push(line);
     });
-
-    // 如果AI没有生成封面，提供兜底
+    saveBlock();
     if (!data.cover.headline) data.cover.headline = "AI排版生成";
     return data;
   }
@@ -282,12 +297,12 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     
     <div class="draggable" style="top:32%; left:32px; right:32px;">
       <i class="del-btn">×</i><i class="drag-handle"></i>
-      <div class="t-display editable" contenteditable="true">${(aiData.cover?.headline || '大标题').replace(/\n/g, '<br>')}</div>
+      <div class="t-display editable" contenteditable="true">${(aiData.cover?.headline || '大标题').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>
     </div>
     
     <div class="draggable" style="top:68%; left:32px; right:32px;">
       <i class="del-btn">×</i><i class="drag-handle"></i>
-      <div class="t-body editable" contenteditable="true">${aiData.cover?.sub || ''}</div>
+      <div class="t-body editable" contenteditable="true">${(aiData.cover?.sub || '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
     </div>
     
     <div class="draggable" style="bottom:22px; right:32px; display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
@@ -309,23 +324,23 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
           if (el.type === 'h2') {
             blocksHTML += `<div style="margin-bottom:12px;">
             <div class="deco-line"></div>
-            <div class="t-h2 editable" contenteditable="true" style="margin-bottom:6px;">${el.content}</div>
+            <div class="t-h2 editable" contenteditable="true" style="margin-bottom:6px;">${el.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
           </div>`;
           } else if (el.type === 'body') {
             blocksHTML += `<div class="story-block" style="border-left-color: var(--accent); margin-bottom:12px;">
-            <div class="t-body editable" contenteditable="true">${el.content}</div>
+            <div class="t-body editable" contenteditable="true">${el.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
           </div>`;
           } else if (el.type === 'quote') {
             blocksHTML += `<div class="quote-wrap" style="margin-bottom:12px; position:relative; min-height:80px;">
             <div class="quote-mark sub-draggable" style="position:absolute; top:-10px; left:50%; transform:translateX(-50%);">"</div>
-            <div class="quote-text editable sub-draggable" contenteditable="true" style="position:relative; z-index:2; margin-top:20px;">${el.content}</div>
+            <div class="quote-text editable sub-draggable" contenteditable="true" style="position:relative; z-index:2; margin-top:20px;">${el.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
             <div class="quote-author editable sub-draggable" contenteditable="true" data-solo="1" style="position:relative; margin-top:10px;">—— ${el.author || '佚名'}</div>
           </div>`;
           } else if (el.type === 'data') {
             blocksHTML += `<div class="data-wrap" style="margin-bottom:12px; position:relative; min-height:60px;">
             <div class="data-item" style="border:none; padding:0; align-items:flex-end;">
               <div class="t-num editable sub-draggable" contenteditable="true" data-solo="1" style="position:relative;">${el.num}</div>
-              <div class="data-label editable sub-draggable" contenteditable="true" data-solo="1" style="position:relative; margin-left:8px; margin-bottom:8px;">${el.label}</div>
+              <div class="data-label editable sub-draggable" contenteditable="true" data-solo="1" style="position:relative; margin-left:8px; margin-bottom:8px;">${el.label.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
             </div>
             <div class="divider"></div>
           </div>`;
@@ -334,18 +349,18 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
             <div class="list-item" style="position:relative; border:none; padding-bottom:8px;">
               <div class="list-num sub-draggable" style="position:relative;">${i + 1}</div>
               <div class="list-content" style="position:relative; padding-left:12px;">
-                <div class="list-title editable sub-draggable" contenteditable="true" style="position:relative;">${item.title}</div>
-                <div class="list-desc editable sub-draggable" contenteditable="true" style="position:relative;">${item.desc || ''}</div>
+                <div class="list-title editable sub-draggable" contenteditable="true" style="position:relative;">${item.title.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
+                <div class="list-desc editable sub-draggable" contenteditable="true" style="position:relative;">${(item.desc || '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
               </div>
             </div>`).join('');
             blocksHTML += `<div class="list-wrap" style="margin-bottom:12px;">${listItems}</div>`;
           } else if (el.type === 'alert' || el.type === 'tip') {
             blocksHTML += `<div class="tip-block" style="margin-bottom:12px; position:relative; display:flex;">
             <span class="tip-icon sub-draggable" style="position:relative; margin-right:12px;">💡</span>
-            <div class="t-body editable sub-draggable" contenteditable="true" style="position:relative; flex:1;">${el.content}</div>
+            <div class="t-body editable sub-draggable" contenteditable="true" style="position:relative; flex:1;">${el.content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>
           </div>`;
           } else {
-            blocksHTML += `<div class="t-body editable" contenteditable="true" style="margin-bottom:12px;">${el.content || JSON.stringify(el)}</div>`;
+            blocksHTML += `<div class="t-body editable" contenteditable="true" style="margin-bottom:12px;">${(el.content || '').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>`;
           }
         });
 
