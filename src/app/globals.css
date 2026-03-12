@@ -1039,7 +1039,8 @@ body:not(.edit-mode) .edit-bar {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -1051,7 +1052,8 @@ body:not(.edit-mode) .edit-bar {
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: #7f73ce;
 }
