@@ -59,6 +59,7 @@ export default function initPosterApp() {
 - 所有的字符串值必须严格被英文双引号包裹 (如果内容中需要包含引号，请使用中文引号以避免解析错误)
 - 【极其重要】绝对不要在字符串内部直接按回车换行！所有的换行必须写成 \\n 转义符。如果做不到，请删掉所有换行。
 - 保证正文中的特殊字符正确转义，防止解析错误
+- 【重要排版建议】根据用户提供文本的长短智能决定 page 的数量。如果文本很短（少于100字），1张甚至不需要内容页直接用封面和尾页即可。只有文字很多时，才按逻辑切分多页。永远不要为了切分而切分！
 格式示例如下：
 {
   "cover": {
@@ -584,7 +585,25 @@ export default function initPosterApp() {
     try {
       for (let i = 0; i < posters.length; i++) {
         dlText.textContent = `正在生成第 ${i + 1} / ${posters.length} 张...`; dlFill.style.width = ((i + 1) / posters.length * 100) + '%';
-        const canvas = await html2canvas(posters[i], { scale: 2, useCORS: true, backgroundColor: null, logging: false });
+        // 获取元素的精确尺寸和位置，避免 html2canvas 截断
+        const rect = posters[i].getBoundingClientRect();
+        // 渲染时强制页面回到顶部，防止滚动条导致的错位截断
+        window.scrollTo(0, 0);
+
+        const canvas = await html2canvas(posters[i], {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: null,
+          logging: false,
+          width: posters[i].offsetWidth,
+          height: posters[i].offsetHeight,
+          windowWidth: document.documentElement.offsetWidth,
+          windowHeight: document.documentElement.offsetHeight,
+          x: 0,
+          y: 0,
+          scrollY: 0,
+          scrollX: 0
+        });
         const link = document.createElement('a'); link.download = `poster-${String(i + 1).padStart(2, '0')}.png`; link.href = canvas.toDataURL('image/png');
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
         if (i < posters.length - 1) await new Promise(r => setTimeout(r, 600));
