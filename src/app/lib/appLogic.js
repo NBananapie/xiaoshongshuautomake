@@ -175,16 +175,15 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     }
   });
 
-  // ========== Markdown 解析引擎 ==========
   function parseMarkdownToPosterData(mdText) {
     const data = { cover: {}, pages: [], ending: {} };
-    // 按一级标题切分页面
+    // 按一级标题切分页面，支持多种换行符和空格
     const pagesRaw = mdText.split(/^#\s+/m).filter(p => p.trim());
 
     pagesRaw.forEach(pageStr => {
-      const lines = pageStr.split('\\n');
+      const lines = pageStr.split(/\r?\n/);
       const pageTypeLine = lines[0].trim();
-      const pageBody = lines.slice(1).join('\\n');
+      const pageBody = lines.slice(1).join('\n');
 
       if (pageTypeLine.includes('封面')) {
         data.cover = parsePageBlocks(pageBody, 'cover');
@@ -211,11 +210,12 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     let currentData = null;
 
     blocksRaw.forEach(blockStr => {
-      const firstLineBreak = blockStr.indexOf('\\n');
+      // 查找第一个换行符的位置
+      const firstLineBreak = blockStr.search(/\r?\n/);
       if (firstLineBreak === -1) return;
 
       const title = blockStr.substring(0, firstLineBreak).trim();
-      const content = blockStr.substring(firstLineBreak + 1).trim();
+      const content = blockStr.substring(firstLineBreak).trim(); // trim() 会去掉开头的换行符
       if (!content) return;
 
       if (pageType === 'cover') {
@@ -226,7 +226,7 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
         if (title.includes('背景色')) res.bgTheme = content;
         if (title.includes('互动') || title.includes('引导')) res.cta = content;
       } else {
-        // Content pages
+        // 内容页
         if (title.includes('背景色')) {
           res.bgTheme = content;
         } else if (title.includes('小标题') || title.includes('标题')) {
@@ -244,19 +244,18 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
           if (currentData) currentData.label = content;
           else { currentData = { type: 'data', num: '', label: content }; res.elements.push(currentData); }
         } else if (title.includes('提示') || title.includes('敬告') || title.includes('警告')) {
-          res.elements.push({ type: 'tip', content: content.replace(/^[\\-\\*\\•]\\s*/gm, '') });
+          res.elements.push({ type: 'tip', content: content.replace(/^[-\*•]\s*/gm, '') });
         } else if (title.includes('列表')) {
-          // 简单处理列表项
-          const items = content.split('\\n').filter(l => l.trim()).map(l => {
-            const clean = l.replace(/^[\\-\\*\\d\\.\\•]+\\s*/, '');
+          const items = content.split(/\r?\n/).filter(l => l.trim()).map(l => {
+            const clean = l.replace(/^[-\*\d\.•]+\s*/, '');
             return { title: clean, desc: '' };
           });
           if (items.length > 0) res.elements.push({ type: 'list', items });
         } else if (title.includes('正文')) {
-          res.elements.push({ type: 'body', content: content.replace(/\\n/g, '<br>') });
+          res.elements.push({ type: 'body', content: content.replace(/\r?\n/g, '<br>') });
         } else {
-          // Fallback map
-          res.elements.push({ type: 'body', content: content.replace(/\\n/g, '<br>') });
+          // 兜底
+          res.elements.push({ type: 'body', content: content.replace(/\r?\n/g, '<br>') });
         }
       }
     });
