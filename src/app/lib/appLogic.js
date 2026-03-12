@@ -1,3 +1,5 @@
+import { jsonrepair } from 'jsonrepair';
+
 export default function initPosterApp() {
   if (window.__posterAppInit) return;
   window.__posterAppInit = true;
@@ -54,8 +56,9 @@ export default function initPosterApp() {
 请务必输出极其标准的 JSON 格式：
 - 必须且只能是 JSON Object (大括号开头和结尾)
 - 不要包含额外的 markdown 包裹（不需要 \`\`\`json 等）
-- 所有的字符串值必须严格被英文双引号包裹 (e.g. "sub": "副标题内容")
-- 保证正文中的特殊字符或换行符正确转义，防止解析错误
+- 所有的字符串值必须严格被英文双引号包裹 (如果内容中需要包含引号，请使用中文引号以避免解析错误)
+- 【极其重要】绝对不要在字符串内部直接按回车换行！所有的换行必须写成 \\n 转义符。如果做不到，请删掉所有换行。
+- 保证正文中的特殊字符正确转义，防止解析错误
 格式示例如下：
 {
   "cover": {
@@ -151,16 +154,21 @@ export default function initPosterApp() {
       // 清理 markdown 包裹
       content = content.replace(/^```json/im, '').replace(/```$/m, '').trim();
 
-      // 修复因 AI 幻觉导致的 JSON literal 异常（如字符串中直接包含未经 \\n 转义的物理换行符）
-      // 将所有 0x00-0x1F 的控制字符（包含了实际换行符、Tab 等）全部剔除，确保安全解析
-      content = content.replace(/[\u0000-\u001F]+/g, "");
-
+      // 使用 jsonrepair 强力修复由于模型幻觉导致的单双引号混乱、结尾无逗号、多余逗号等情况
       let result;
       try {
-        result = JSON.parse(content);
+        const repaired = jsonrepair(content);
+        result = JSON.parse(repaired);
       } catch (parseError) {
-        console.error("AI 原始返回内容:", content);
-        throw new Error("模型生成了不标准的 JSON 格式，这通常是由于它拼接了一些没有双引号的字符串或特殊字符。\\n建议您适度删除文本中奇怪的表情符号或多试一次！\\n(内部错误: " + parseError.message + ")");
+        // Fallback: 暴力剔除控制字符再次尝试修理（物理换行符等）
+        try {
+          const fallbackContent = content.replace(/[\u0000-\u001F]+/g, "");
+          const fallbackRepaired = jsonrepair(fallbackContent);
+          result = JSON.parse(fallbackRepaired);
+        } catch (fallbackError) {
+          console.error("AI 原始返回内容:", content);
+          throw new Error("模型生成了无法识别的格式（排版格式已损坏）。建议您检查文本中是否有奇怪的特殊字符或表情，并多试一次！\\n(内部错误: " + parseError.message + ")");
+        }
       }
 
       renderAIResult(result, author);
