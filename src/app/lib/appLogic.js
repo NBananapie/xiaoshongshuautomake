@@ -47,43 +47,49 @@ export default function initPosterApp() {
   // AI prompt constant
   const AI_PROMPT = `你是一个专业的小红书海报排版与色彩设计师。
 请根据用户的长文本，将其总结提取，设计成一份多页轮播海报。
-你需要：
-1. 提炼出吸引人的封面主标题（headline）和副标题（sub）。
-2. 将正文切分成多页（pages），每页不宜过多文字。对于每页的 elements，按排版类型分类（目前支持：h2, body, alert, quote, data, list）。
-3. 结尾页提供诱导互动的话语（cta）。
-4. 最重要的是，为你生成的这套海报设计一个视觉主题色（纯色色值或者渐变色 linear-gradient / radial-gradient），放在 bgTheme 字段中。封面、各内容页、尾页可以有相呼应但不完全一样的 bgTheme。
 
-请务必输出极其标准的 JSON 格式：
-- 必须且只能是 JSON Object (大括号开头和结尾)
-- 不要包含额外的 markdown 包裹（不需要 \`\`\`json 等）
-- 所有的字符串值必须严格被英文双引号包裹 (如果内容中需要包含引号，请使用中文引号以避免解析错误)
-- 【极其重要】绝对不要在字符串内部直接按回车换行！所有的换行必须写成 \\n 转义符。如果做不到，请删掉所有换行。
-- 保证正文中的特殊字符正确转义，防止解析错误
-- 【重要排版建议】根据用户提供文本的长短智能决定 page 的数量。如果文本很短（少于100字），1张甚至不需要内容页直接用封面和尾页即可。只有文字很多时，才按逻辑切分多页。永远不要为了切分而切分！
-格式示例如下：
-{
-  "cover": {
-    "headline": "主标题",
-    "sub": "副标题",
-    "bgTheme": "radial-gradient(ellipse at 50% 50%, #fff 0%, #f0f0f0 100%)"
-  },
-  "pages": [
-    {
-      "bgTheme": "linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)",
-      "elements": [
-        { "type": "h2", "content": "小标题" },
-        { "type": "body", "content": "正文段落" },
-        { "type": "list", "items": [{"title":"一","desc":"细节"},{"title":"二","desc":"细节"}] },
-        { "type": "quote", "content": "金句", "author": "某人" },
-        { "type": "data", "num": "99%", "label": "数据说明" }
-      ]
-    }
-  ],
-  "ending": {
-    "cta": "喜欢就点赞收藏吧！",
-    "bgTheme": "#cfdef3"
-  }
-}`;
+您必须**严格使用以下 Markdown 格式**输出海报内容（绝对不要输出 JSON！）。
+使用一级标题 \`# \` 来标识页面，比如 \`# 封面\`、\`# 内容页1\`、\`# 尾页\`。
+每个页面下面，使用二级标题 \`## \` 以及特定的关键词来定义内容块，并在下方写上对应的内容。
+
+【非常重要的排版规则】
+- 如果文本很短（如几十个字），只需生成 \`# 封面\` 和 \`# 尾页\`，不需要内容页！
+- 主题色请采用 CSS 色值（如 #ffffff, linear-gradient(...) 等）。
+
+请严格按照以下模板结构输出（不要输出任何多余的寒暄语）：
+
+# 封面
+## 背景色
+radial-gradient(ellipse at 50% 50%, #fff 0%, #f0f0f0 100%)
+## 主标题
+主标题内容
+## 副标题
+副标题内容
+
+# 内容页1
+## 背景色
+linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
+## 小标题
+第二页的小标题
+## 正文
+这里是第二页的正文内容。
+## 金句
+这里是名言警句
+## 金句作者
+某某人
+## 数据值
+99%
+## 数据说明
+相关数据的说明文字
+## 提示
+这里是一个小贴士或者警告
+
+# 尾页
+## 背景色
+#cfdef3
+## 互动引导
+喜欢就点赞收藏吧！
+`;
 
   document.getElementById('btnGenerateNow').addEventListener('click', async () => {
     const apiKey = document.getElementById('iptApiKey').value.trim();
@@ -152,24 +158,10 @@ export default function initPosterApp() {
         }
       }
 
-      // 清理 markdown 包裹
-      content = content.replace(/^```json/im, '').replace(/```$/m, '').trim();
+      let result = parseMarkdownToPosterData(content);
 
-      // 使用 jsonrepair 强力修复由于模型幻觉导致的单双引号混乱、结尾无逗号、多余逗号等情况
-      let result;
-      try {
-        const repaired = jsonrepair(content);
-        result = JSON.parse(repaired);
-      } catch (parseError) {
-        // Fallback: 暴力剔除控制字符再次尝试修理（物理换行符等）
-        try {
-          const fallbackContent = content.replace(/[\u0000-\u001F]+/g, "");
-          const fallbackRepaired = jsonrepair(fallbackContent);
-          result = JSON.parse(fallbackRepaired);
-        } catch (fallbackError) {
-          console.error("AI 原始返回内容:", content);
-          throw new Error("模型生成了无法识别的格式（排版格式已损坏）。建议您检查文本中是否有奇怪的特殊字符或表情，并多试一次！\\n(内部错误: " + parseError.message + ")");
-        }
+      if (!result.cover) {
+        throw new Error("AI未能生成有效的排版内容，请稍后再试。");
       }
 
       renderAIResult(result, author);
@@ -182,6 +174,95 @@ export default function initPosterApp() {
       btn.disabled = false;
     }
   });
+
+  // ========== Markdown 解析引擎 ==========
+  function parseMarkdownToPosterData(mdText) {
+    const data = { cover: {}, pages: [], ending: {} };
+    // 按一级标题切分页面
+    const pagesRaw = mdText.split(/^#\s+/m).filter(p => p.trim());
+
+    pagesRaw.forEach(pageStr => {
+      const lines = pageStr.split('\\n');
+      const pageTypeLine = lines[0].trim();
+      const pageBody = lines.slice(1).join('\\n');
+
+      if (pageTypeLine.includes('封面')) {
+        data.cover = parsePageBlocks(pageBody, 'cover');
+      } else if (pageTypeLine.includes('尾页') || pageTypeLine.includes('结尾')) {
+        data.ending = parsePageBlocks(pageBody, 'ending');
+      } else {
+        const parsedContext = parsePageBlocks(pageBody, 'content');
+        if (parsedContext.elements && parsedContext.elements.length > 0) {
+          data.pages.push(parsedContext);
+        }
+      }
+    });
+
+    // 如果AI没有生成封面，提供兜底
+    if (!data.cover.headline) data.cover.headline = "AI排版生成";
+    return data;
+  }
+
+  function parsePageBlocks(pageBodyStr, pageType) {
+    const blocksRaw = pageBodyStr.split(/^##\s+/m).filter(b => b.trim());
+    const res = (pageType === 'content') ? { bgTheme: '', elements: [] } : {};
+
+    let currentQuote = null;
+    let currentData = null;
+
+    blocksRaw.forEach(blockStr => {
+      const firstLineBreak = blockStr.indexOf('\\n');
+      if (firstLineBreak === -1) return;
+
+      const title = blockStr.substring(0, firstLineBreak).trim();
+      const content = blockStr.substring(firstLineBreak + 1).trim();
+      if (!content) return;
+
+      if (pageType === 'cover') {
+        if (title.includes('背景色')) res.bgTheme = content;
+        if (title.includes('主标题')) res.headline = content;
+        if (title.includes('副标题')) res.sub = content;
+      } else if (pageType === 'ending') {
+        if (title.includes('背景色')) res.bgTheme = content;
+        if (title.includes('互动') || title.includes('引导')) res.cta = content;
+      } else {
+        // Content pages
+        if (title.includes('背景色')) {
+          res.bgTheme = content;
+        } else if (title.includes('小标题') || title.includes('标题')) {
+          res.elements.push({ type: 'h2', content });
+        } else if (title.includes('金句作者')) {
+          if (currentQuote) currentQuote.author = content;
+          else { currentQuote = { type: 'quote', content: '', author: content }; res.elements.push(currentQuote); }
+        } else if (title.includes('金句') || title.includes('名言')) {
+          if (currentQuote) currentQuote.content = content;
+          else { currentQuote = { type: 'quote', content: content, author: '佚名' }; res.elements.push(currentQuote); }
+        } else if (title.includes('数据值')) {
+          if (currentData) currentData.num = content;
+          else { currentData = { type: 'data', num: content, label: '' }; res.elements.push(currentData); }
+        } else if (title.includes('数据说明')) {
+          if (currentData) currentData.label = content;
+          else { currentData = { type: 'data', num: '', label: content }; res.elements.push(currentData); }
+        } else if (title.includes('提示') || title.includes('敬告') || title.includes('警告')) {
+          res.elements.push({ type: 'tip', content: content.replace(/^[\\-\\*\\•]\\s*/gm, '') });
+        } else if (title.includes('列表')) {
+          // 简单处理列表项
+          const items = content.split('\\n').filter(l => l.trim()).map(l => {
+            const clean = l.replace(/^[\\-\\*\\d\\.\\•]+\\s*/, '');
+            return { title: clean, desc: '' };
+          });
+          if (items.length > 0) res.elements.push({ type: 'list', items });
+        } else if (title.includes('正文')) {
+          res.elements.push({ type: 'body', content: content.replace(/\\n/g, '<br>') });
+        } else {
+          // Fallback map
+          res.elements.push({ type: 'body', content: content.replace(/\\n/g, '<br>') });
+        }
+      }
+    });
+
+    return res;
+  }
 
   function renderAIResult(aiData, author) {
     const canvas = document.getElementById('canvasArea');
