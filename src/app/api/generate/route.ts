@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
                     { role: "system", content: dynamicPrompt },
                     { role: "user", content: textRaw },
                 ],
-                response_format: { type: "json_object" },
                 stream: true,
             }),
         });
