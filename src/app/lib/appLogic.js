@@ -44,52 +44,178 @@ export default function initPosterApp() {
   /* =======================================================
      2. 核心分页排版引擎 (AI 逻辑本地化)
   ======================================================= */
-  // AI prompt constant
-  const AI_PROMPT = `你是一个专业的小红书海报排版与色彩设计师。
-请根据用户的长文本，将其总结提取，设计成一份多页轮播海报。
+  // AI prompt constants
+  const AI_PROMPT_STANDARD = `你是“小红书轮播海报内容策划 + 排版设计师”。
+你的任务：把用户输入的长文本，重构为可直接用于海报渲染的多页 Markdown 内容。
 
-您必须**严格使用以下 Markdown 格式**输出海报内容（绝对不要输出 JSON！）。
-使用一级标题 \`# \` 来标识页面，比如 \`# 封面\`、\`# 内容页1\`、\`# 尾页\`。
-每个页面下面，使用二级标题 \`## \` 以及特定的关键词来定义内容块，并在下方写上对应的内容。
+【输出目标】
+- 仅输出 Markdown 正文，不要任何解释、前言、总结、代码块标记（如 \`\`\`）。
+- 必须按“页面 -> 内容块”的结构输出。
+- 页面标题必须使用一级标题：# 
+- 内容块标题必须使用二级标题：## 
 
-【非常重要的排版规则】
-- 如果文本很短（如几十个字），只需生成 \`# 封面\` 和 \`# 尾页\`，不需要内容页！
-- 主题色请采用 CSS 色值（如 #ffffff, linear-gradient(...) 等）。
+【硬性格式要求】
+1) 必须包含且按以下页面顺序：
+   - # 封面
+   - # 内容页1（可继续 # 内容页2、# 内容页3...）
+   - # 尾页
 
-请严格按照以下模板结构输出（不要输出任何多余的寒暄语）：
+2) 如果用户原文很短（约 <= 80 字），只输出：
+   - # 封面
+   - # 尾页
+   不要输出任何内容页。
+
+3) 每个页面可用的二级标题（关键词）如下（请严格使用这些关键词，避免同义替换）：
+   - 封面页允许：
+     - ## 背景色
+     - ## 主标题
+     - ## 副标题
+   - 内容页允许：
+     - ## 背景色
+     - ## 小标题
+     - ## 正文
+     - ## 金句
+     - ## 金句作者
+     - ## 数据值
+     - ## 数据说明
+     - ## 提示
+     - ## 列表
+   - 尾页允许：
+     - ## 背景色
+     - ## 互动引导
+
+4) 内容约束：
+   - 每个“正文”控制在 40~120 字，口语化、信息密度高、可读性强。
+   - 金句要短（10~30 字），有记忆点。
+   - 数据值尽量有量化表达（如“3步”“80%”“7天”）。
+   - 提示要可执行，避免空话。
+   - 列表请用 Markdown 列表（每行以 - 开头）。
+   - 不要出现“作为AI”“我认为”等元话术。
+
+5) 风格与视觉：
+   - 背景色必须是可用 CSS 值（如 #F5F7FA 或 linear-gradient(...)）。
+   - 全文风格统一，语气适合小红书（真实、利他、可收藏）。
+   - 标题要抓人，但不夸张，不低俗，不违规。
+
+6) 分页策略：
+   - 短文：封面 + 尾页
+   - 中长文：1~4 个内容页
+   - 超长文：最多 6 个内容页
+   - 内容页按“问题/误区 -> 方法步骤 -> 案例或数据 -> 行动建议”组织优先。
+
+【请严格按以下模板形状输出（字段可增减，但结构不能错）】
 
 # 封面
 ## 背景色
-radial-gradient(ellipse at 50% 50%, #fff 0%, #f0f0f0 100%)
+（CSS颜色或渐变）
 ## 主标题
-主标题内容
+（抓人主标题）
 ## 副标题
-副标题内容
+（补充说明）
 
 # 内容页1
 ## 背景色
-linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
+（CSS颜色或渐变）
 ## 小标题
-第二页的小标题
+（该页主题）
 ## 正文
-这里是第二页的正文内容。
+（该页正文）
 ## 金句
-这里是名言警句
+（可选）
 ## 金句作者
-某某人
+（可选）
 ## 数据值
-99%
+（可选）
 ## 数据说明
-相关数据的说明文字
+（可选）
 ## 提示
-这里是一个小贴士或者警告
+（可选）
+## 列表
+- （可选）
+- （可选）
 
 # 尾页
 ## 背景色
-#cfdef3
+（CSS颜色或渐变）
 ## 互动引导
-喜欢就点赞收藏吧！
+（点赞/收藏/评论引导）
 `;
+
+  const AI_PROMPT_VIRAL = `你是“小红书爆款内容策划总监 + 轮播海报主笔”。
+目标：把用户原文改写为更容易获得“点赞、收藏、评论、转发”的多页海报脚本。
+
+【核心原则】
+- 先抓注意力，再给价值，再促行动。
+- 信息必须真实、具体、可执行，不夸大承诺，不制造违规内容。
+- 内容节奏要快：每页只讲一个重点。
+
+【输出格式（必须严格遵守）】
+- 只输出 Markdown 正文，不要任何解释、前言或代码块标记。
+- 页面必须用一级标题：# 
+- 内容块必须用二级标题：## 
+- 页面顺序必须是：# 封面 -> # 内容页1... -> # 尾页
+- 如果原文很短（<= 80 字），只输出封面和尾页。
+
+【可用字段关键词（禁止改名）】
+- 封面：## 背景色 / ## 主标题 / ## 副标题
+- 内容页：## 背景色 / ## 小标题 / ## 正文 / ## 金句 / ## 金句作者 / ## 数据值 / ## 数据说明 / ## 提示 / ## 列表
+- 尾页：## 背景色 / ## 互动引导
+
+【爆款写作约束】
+1) 标题策略：
+   - 主标题要有“痛点+结果”或“反常识+收益”。
+   - 小标题尽量用动词开头，如“先停掉”“马上替换”“照着做”。
+2) 正文策略：
+   - 正文 40~110 字，尽量包含场景、动作、结果。
+   - 每页至少给一个可执行动作，避免鸡汤。
+3) 转化策略：
+   - 至少 1 页包含“数据值 + 数据说明”。
+   - 至少 1 页包含“提示”或“列表”。
+   - 尾页互动引导要明确引导“收藏 + 评论关键词”。
+4) 视觉策略：
+   - 背景色使用高对比、可读性强的 CSS 颜色或渐变。
+   - 全文语气要有力度，但不攻击、不焦虑营销。
+
+【输出模板形状】
+# 封面
+## 背景色
+（CSS颜色或渐变）
+## 主标题
+（强钩子标题）
+## 副标题
+（人群/场景/收益）
+
+# 内容页1
+## 背景色
+（CSS颜色或渐变）
+## 小标题
+（单页核心）
+## 正文
+（场景+动作+结果）
+## 金句
+（可选）
+## 金句作者
+（可选）
+## 数据值
+（可选）
+## 数据说明
+（可选）
+## 提示
+（可选）
+## 列表
+- （可选）
+- （可选）
+
+# 尾页
+## 背景色
+（CSS颜色或渐变）
+## 互动引导
+（如：收藏这套模板，评论“清单”我发你可复用版本）
+`;
+
+  function getPromptByMode(mode) {
+    return mode === 'viral' ? AI_PROMPT_VIRAL : AI_PROMPT_STANDARD;
+  }
 
   document.getElementById('btnGenerateNow').addEventListener('click', async () => {
     const apiKey = document.getElementById('iptApiKey').value.trim();
@@ -97,6 +223,7 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     const textRaw = document.getElementById('iptText').value.trim();
     const author = document.getElementById('iptAuthor').value.trim();
     const stylePref = document.getElementById('iptStyle').value.trim();
+    const promptMode = document.getElementById('iptPromptMode')?.value || 'standard';
 
     if (!textRaw) return alert('请输入正文内容');
     if (!apiKey || !modelEp) return alert('请确保 API Key 和 模型接入点 已填写');
@@ -107,7 +234,8 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     btn.disabled = true;
 
     try {
-      const dynamicPrompt = AI_PROMPT + (stylePref ? `\n\n【用户强制定制要求】请务必使整套海报的配色和设计风格贴合以下描述：${stylePref}` : '');
+      const basePrompt = getPromptByMode(promptMode);
+      const dynamicPrompt = basePrompt + (stylePref ? `\n\n【用户强制定制要求】请务必使整套海报的配色和设计风格贴合以下描述：${stylePref}` : '');
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -466,26 +594,32 @@ linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%)
     const solo = el.dataset.solo === '1';
 
     // 双击激活真正的文字编辑
-    el.addEventListener('dblclick', function (e) {
+    el.addEventListener('dblclick', (e) => {
       if (!isEditMode) return;
       e.stopPropagation(); // 防止冒泡触发画板双击
-      this.contentEditable = "true";
-      focusedEl = this;
-      savedContent = this.innerHTML;
-      openEditBar(this);
-      this.focus();
-      selectAllText(this);
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      target.contentEditable = "true";
+      focusedEl = target;
+      savedContent = target.innerHTML;
+      openEditBar(target);
+      target.focus();
+      selectAllText(target);
     });
 
-    el.addEventListener('blur', function () {
-      this.contentEditable = "false"; // 退出时恢复只读（可拖拽状态）
-      closeEditBar(this);
+    el.addEventListener('blur', (e) => {
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      target.contentEditable = "false"; // 退出时恢复只读（可拖拽状态）
+      closeEditBar(target);
       focusedEl = null;
     });
 
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.preventDefault(); this.innerHTML = savedContent; this.blur(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); solo ? this.blur() : insertLineBreak(); }
+    el.addEventListener('keydown', (e) => {
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      if (e.key === 'Escape') { e.preventDefault(); target.innerHTML = savedContent; target.blur(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); solo ? target.blur() : insertLineBreak(); }
     });
 
     el.addEventListener('paste', function (e) {

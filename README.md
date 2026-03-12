@@ -41,6 +41,31 @@
 点击 **Save and Deploy (保存并部署)**。
 等待几分钟后，Cloudflare 会生成一个类似 `https://xiaoshongshuautomake.pages.dev` 的链接，你的海报生成器就正式上线了！而且前端完全看不到 API Key，非常安全。
 
+
+### 常见报错一键排查（你现在遇到的就是这个）
+如果 Cloudflare 日志里出现：
+- `Executing user build command: npx opennextjs-cloudflare build`
+- `npm error could not determine executable to run`
+
+说明：Cloudflare 在执行 `npx opennextjs-cloudflare build` 时，找不到这个命令。
+
+请按下面 3 步处理（从上到下）：
+1. **确保最新代码已部署**（本仓库已经内置了本地 `opennextjs-cloudflare` CLI 兼容层）。
+2. 在 Cloudflare Pages 项目设置中将 **Build command** 明确设为：
+   - `npx opennextjs-cloudflare build`（推荐，兼容你当前配置）
+   - 或 `npm run build`（更简化）
+3. 清理缓存后重新部署：**Retry deployment -> Clear build cache**。
+
+### 关于你截图里 “0/1 失败” 的处理方法
+你现在有多个历史分支（如 `codex/optimize-ai-prompt-wording*`）都在跑检查，容易看花。
+
+建议只保留一个最终分支：
+1. 选中最新修复分支对应的 PR（包含 Cloudflare 构建修复）。
+2. 合并后，关闭其余旧 PR。
+3. 删除旧分支，只保留 `main` 和当前生效分支。
+
+这样状态页会立刻清爽，不会再出现“多个分支都红叉但你不知道看哪个”的情况。
+
 ---
 
 ## 项目功能特性继承

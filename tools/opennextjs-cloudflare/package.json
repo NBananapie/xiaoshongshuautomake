@@ -1,0 +1,8 @@
+{
+  "name": "opennextjs-cloudflare",
+  "version": "0.0.1",
+  "private": true,
+  "bin": {
+    "opennextjs-cloudflare": "bin/cli.mjs"
+  }
+}
