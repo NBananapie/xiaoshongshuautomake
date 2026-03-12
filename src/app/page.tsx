@@ -16,6 +16,9 @@ export default function Home() {
     };
     document.body.appendChild(script);
 
+    // 初始化时，给 body 加上 edit-mode 类，确保编辑栏和悬浮按钮可见
+    document.body.classList.add("edit-mode");
+
     return () => {
       // 这里的清理工作可以简化，刷新页面即重置
     };
