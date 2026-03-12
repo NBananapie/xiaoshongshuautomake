@@ -594,26 +594,32 @@ export default function initPosterApp() {
     const solo = el.dataset.solo === '1';
 
     // 双击激活真正的文字编辑
-    el.addEventListener('dblclick', function (e) {
+    el.addEventListener('dblclick', (e) => {
       if (!isEditMode) return;
       e.stopPropagation(); // 防止冒泡触发画板双击
-      this.contentEditable = "true";
-      focusedEl = this;
-      savedContent = this.innerHTML;
-      openEditBar(this);
-      this.focus();
-      selectAllText(this);
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      target.contentEditable = "true";
+      focusedEl = target;
+      savedContent = target.innerHTML;
+      openEditBar(target);
+      target.focus();
+      selectAllText(target);
     });
 
-    el.addEventListener('blur', function () {
-      this.contentEditable = "false"; // 退出时恢复只读（可拖拽状态）
-      closeEditBar(this);
+    el.addEventListener('blur', (e) => {
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      target.contentEditable = "false"; // 退出时恢复只读（可拖拽状态）
+      closeEditBar(target);
       focusedEl = null;
     });
 
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.preventDefault(); this.innerHTML = savedContent; this.blur(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); solo ? this.blur() : insertLineBreak(); }
+    el.addEventListener('keydown', (e) => {
+      const target = e.currentTarget;
+      if (!(target instanceof HTMLElement)) return;
+      if (e.key === 'Escape') { e.preventDefault(); target.innerHTML = savedContent; target.blur(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); solo ? target.blur() : insertLineBreak(); }
     });
 
     el.addEventListener('paste', function (e) {
