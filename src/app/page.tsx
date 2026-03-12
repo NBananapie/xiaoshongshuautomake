@@ -80,6 +80,13 @@ export default function Home() {
               <textarea id="iptText" rows={10} placeholder="请将您的文章内容粘贴在这里..."></textarea>
             </div>
             <div className="form-group">
+              <label>生成方式：</label>
+              <select id="iptPromptMode" defaultValue="standard">
+                <option value="standard">稳健结构化（信息清晰、排版稳定）</option>
+                <option value="viral">爆款转化向（标题更强、互动更高）</option>
+              </select>
+            </div>
+            <div className="form-group">
               <label>风格与配色要求 (选填)：</label>
               <input type="text" id="iptStyle" placeholder="例如：暗黑科幻风的蓝紫色调、喜庆的红色系..." />
             </div>
